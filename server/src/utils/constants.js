@@ -2,9 +2,9 @@
 
 const AUTH_MODE = {
   isAdmin: 'isAdmin',
-  isSamePersonOrAdmin: 'isSamePersonOrAdmin',
-  isOwner: 'isOwner',
-  isAllowed: 'isAllowed'
+  isOwnerOrAdmin: 'isOwnerOrAdmin',
+  getCurrentUser: 'getCurrentUser',
+  isAllowed: 'isAllowed',
 };
 
 const ROLE = {

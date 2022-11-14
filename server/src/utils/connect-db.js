@@ -3,6 +3,8 @@
 const mongoose = require('mongoose');
 const env = require('env-var');
 
+const createDummyData = require('../controllers/seeder-controller');
+
 const logger = require('./logger');
 const { InternalServerError } = require('./errors');
 
@@ -26,8 +28,17 @@ const connectDb = async () => {
         useNewUrlParser: true,
         useUnifiedTopology: true,
       })
-      .then((response) => {
+      .then(async (response) => {
         logger.info('Connected to database');
+
+        // create connection object
+        let db = mongoose.connection.db;
+        let collections = await db.listCollections().toArray();
+
+        // Run seeds DB with Dummy data only if DB is empty
+        // in other way use seeder endpoint
+        if (collections.length === 0) createDummyData();
+
         return response;
       })
       .catch((error) => {

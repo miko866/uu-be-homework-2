@@ -42,6 +42,12 @@ const userSchema = new mongoose.Schema(
       ref: 'roleId',
       select: true,
     },
+    shoppingLists: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'ShoppingList',
+      },
+    ],
     salt: {
       type: String,
       required: true,
@@ -67,12 +73,6 @@ userSchema.virtual('role', {
   localField: 'roleId',
   foreignField: '_id',
   justOne: true,
-});
-
-userSchema.virtual('shoppingList', {
-  ref: 'UserShoppingList',
-  localField: '_id',
-  foreignField: 'shoppingListId',
 });
 
 userSchema.set('toObject', {

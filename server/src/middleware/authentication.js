@@ -5,6 +5,7 @@ const env = require('env-var');
 
 const logger = require('../utils/logger');
 const { getRole } = require('../controllers/role-controller');
+// const { getShoppingList } = require('../controllers/shoppingList-controller');
 
 const { NotAuthorizedError } = require('../utils/errors');
 const { AUTH_MODE, ROLE } = require('../utils/constants');
@@ -29,20 +30,33 @@ const checkJwt = (value) => {
         token = req.headers.authorization.split(' ')[1];
       } else token = tokenOrigin;
 
-      // Verify JWT-Token
-      jwt.verify(token, env.get('JWT_SECRET').required().asString(), (err) => {
-        if (err) throw new NotAuthorizedError();
-      });
+      // Check if JWT Token is valid and decoded it
+      let decoded = null;
+      try {
+        decoded = jwt.verify(token, env.get('JWT_SECRET').required().asString());
+      } catch (err) {
+        throw new NotAuthorizedError();
+      }
 
-      if (value) {
+      if (value === AUTH_MODE.getCurrentUser) {
+        req.userId = decoded.id;
+        next();
+      } else if (value) {
+        // Check JWT custom value
         let response = null;
-        let userId = null;
+        let ownerUserId = null;
+        let ownerShoppingListId = null;
+        let shoppingListId = null;
 
-        if (value === AUTH_MODE.isSamePersonOrAdmin) userId = req.params.userId;
+        if (value === AUTH_MODE.isOwnerOrAdmin) {
+          ownerUserId = req.params.userId;
+          ownerShoppingListId = req.params.shoppingListId;
+        }
+        if (value === AUTH_MODE.isAllowed) shoppingListId = req.params.shoppingListId;
+
         // eslint-disable-next-line no-use-before-define
-        response = await trySwitch(value, token, userId);
+        response = await trySwitch(value, decoded, ownerUserId, ownerShoppingListId, shoppingListId);
 
-        // Because the same person
         if (response === 'admin') {
           req.isAdmin = true;
           next();
@@ -64,20 +78,17 @@ const checkJwt = (value) => {
  * @param {String} token
  * @returns Boolean
  */
-const trySwitch = async (value, token, userId) => {
+const trySwitch = async (value, decoded, ownerUserId, ownerShoppingListId, shoppingListId) => {
   switch (value) {
     case AUTH_MODE.isAdmin:
       // eslint-disable-next-line no-use-before-define
-      return await checkIsAdmin(token);
-    case AUTH_MODE.isSamePersonOrAdmin:
+      return await checkIsAdmin(decoded);
+    case AUTH_MODE.isOwnerOrAdmin:
       // eslint-disable-next-line no-use-before-define
-      return await checkIsSamePersonOrAdmin(token, userId);
-    case AUTH_MODE.isOwner:
-      // eslint-disable-next-line no-use-before-define
-      return true
+      return await checkIsOwnerOrAdmin(decoded, ownerUserId, ownerShoppingListId);
     case AUTH_MODE.isAllowed:
       // eslint-disable-next-line no-use-before-define
-      return true
+      return await checkIsAllowed(decoded, shoppingListId);
     default:
       logger.error(`Sorry, you are out of ${value}.`);
       throw new NotAuthorizedError();
@@ -86,12 +97,11 @@ const trySwitch = async (value, token, userId) => {
 
 /**
  * Check if user is Admin from JWT-Token
- * @param {String} token
+ * @param {Object} decoded
  * @returns Boolean
  */
-const checkIsAdmin = async (token) => {
+const checkIsAdmin = async (decoded) => {
   try {
-    const decoded = jwt.verify(token, env.get('JWT_SECRET').required().asString());
     const role = await getRole(decoded.role, undefined);
     if (role.name !== ROLE.admin) throw new NotAuthorizedError();
 
@@ -104,19 +114,50 @@ const checkIsAdmin = async (token) => {
 
 /**
  * A user can only update himself. An Admin can update all.
- * @param {String} token
+ * @param {Object} decode
  * @param {String} userId
  * @returns Boolean || String
  */
-const checkIsSamePersonOrAdmin = async (token, userId) => {
+const checkIsOwnerOrAdmin = async (decoded, ownerUserId, ownerShoppingListId) => {
   try {
-    const decoded = jwt.verify(token, env.get('JWT_SECRET').required().asString());
     const role = await getRole(decoded.role, undefined);
+    let shoppingList = null;
 
-    if (decoded.id === userId && role.name === ROLE.admin) return 'admin';
-    else if (role.name === ROLE.admin) return 'admin';
-    else if (decoded.id === userId) return true;
+    // if (ownerShoppingListId) {
+    //   shoppingList = await getShoppingList(ownerShoppingListId);
+    // }
+
+    if (role.name === ROLE.admin) return 'admin';
+    else if (ownerUserId && decoded.id === ownerUserId) return true;
+    else if (shoppingList.userId.toString() === decoded.id) return true;
     else return false;
+  } catch (error) {
+    logger.error(`Error checkIsSamePersonOrAdmin: ${error}.`);
+    throw new NotAuthorizedError();
+  }
+};
+
+/**
+ *
+ * @param {Object} decoded
+ * @param {String} shoppingListId
+ * @returns Boolean || String
+ */
+const checkIsAllowed = async (decoded, shoppingListId) => {
+  try {
+    const response = await checkIsOwnerOrAdmin(decoded, null, shoppingListId);
+
+    if (response) {
+      return true;
+    } else {
+      // const shoppingList = await getShoppingList(shoppingListId);
+
+      // const response = !!shoppingList.allowedUsers.find((user) => user._id.toString() === decoded.id);
+
+      // if (response) return true;
+      // return false;
+      return true;
+    }
   } catch (error) {
     logger.error(`Error checkIsSamePersonOrAdmin: ${error}.`);
     throw new NotAuthorizedError();

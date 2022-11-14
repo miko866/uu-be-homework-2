@@ -7,6 +7,8 @@ const { param } = require('express-validator');
 const { validateRequest } = require('../middleware/validate-request');
 const { checkJwt } = require('../middleware/authentication');
 
+const { isValidMongoId } = require('../utils/helpers');
+
 router.get(
   '/roles',
   checkJwt('isAdmin'),
@@ -23,11 +25,18 @@ router.get(
 router.get(
   '/role/:roleId',
   checkJwt('isAdmin'),
-  param('roleId').not().isEmpty().isString().trim().escape(),
+  param('roleId')
+    .not()
+    .isEmpty()
+    .isString()
+    .trim()
+    .escape()
+    .custom((value) => isValidMongoId(value)),
   validateRequest,
   async (req, res, next) => {
     try {
-      res.status(200).send();
+      const { roleId } = req.params;
+      res.status(200).send(roleId);
     } catch (error) {
       next(error);
     }

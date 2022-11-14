@@ -2,7 +2,7 @@
 
 const express = require('express');
 const router = express.Router();
-const { body } = require('express-validator');
+const { body, matchedData } = require('express-validator');
 
 const { validateRequest } = require('../middleware/validate-request');
 
@@ -15,9 +15,9 @@ router.post(
   validateRequest,
   async (req, res, next) => {
     try {
-      const token = await login(req.body);
+      const response = await login(matchedData(req, { locations: ['body'] }));
 
-      res.status(200).send({ token });
+      res.status(200).send({ response });
       return;
     } catch (error) {
       next(error);
